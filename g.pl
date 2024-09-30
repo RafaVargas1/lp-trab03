@@ -209,3 +209,180 @@ move_capture(Board, X1, Y1, X2, Y2, NewBoard) :-
     replace_in_list(Board, Y1, NewRow1, TempBoard1),
     replace_in_list(Row2, X2, Piece, NewRow2),
     replace_in_list(TempBoard1, Y2, NewRow2, NewBoard).
+
+% Predicado principal: faz uma jogada aleatória com uma peça de uma cor (W ou B)
+jogada_aleatoria(Cor) :-
+    board(Board),
+    findall([X, Y], find_piece(Board, Cor, X, Y), Peças), % Encontra todas as peças da cor
+    Peças \= [], % Verifica se há peças da cor no tabuleiro
+    tentar_jogada_aleatoria(Cor, Peças).
+
+% Tenta realizar uma jogada aleatória com qualquer peça de uma cor
+tentar_jogada_aleatoria(Cor, Peças) :-
+    random_select([X1, Y1], Peças, _),  % Seleciona aleatoriamente uma peça
+    board(Board),
+    get_valid_moves_or_captures(Board, X1, Y1, Movimentos), % Encontra movimentos/capturas válidas
+    (
+        Movimentos \= [] ->
+        random_select([X2, Y2], Movimentos, _), % Seleciona aleatoriamente um movimento
+        fazer_jogada(Cor, [X1, Y1], [X2, Y2])    % Executa a jogada
+    ;
+        % Se não houver movimentos para essa peça, tenta outra
+        Peças \= [] ->
+        tentar_jogada_aleatoria(Cor, Peças)
+    ;
+        write('Nenhuma jogada possível para as peças da cor: '), write(Cor), nl
+    ).
+
+% Encontra uma peça de uma cor (W ou B) no tabuleiro
+find_piece(Board, Cor, X, Y) :-
+    nth1(Y, Board, Row),
+    nth1(X, Row, Cor). % Procura uma peça da cor (W ou B) na posição X, Y
+
+% Gera todos os movimentos válidos ou capturas para uma peça na posição (X1, Y1)
+get_valid_moves_or_captures(Board, X1, Y1, Movimentos) :-
+    findall([X2, Y2], 
+        (   move_piece(Board, X1, Y1, X2, Y2, _); 
+            capture_move(Board, X1, Y1, X2, Y2, _, _)), 
+        Movimentos).
+
+% Executa a jogada: primeiro tenta capturar, depois mover
+fazer_jogada(Cor, [X1, Y1], [X2, Y2]) :-
+    board(Board),
+    (   capture_move(Board, X1, Y1, X2, Y2, CapX, CapY) ->
+        capture_piece(Board, X1, Y1, X2, Y2, CapX, CapY, NewBoard),
+        update_board(NewBoard),
+        write('Captura realizada! ('), write(Cor), write(')'), nl,
+        print_board(NewBoard, 8)
+    ;   move_piece(Board, X1, Y1, X2, Y2, NewBoard) ->
+        update_board(NewBoard),
+        write('Movimento realizado! ('), write(Cor), write(')'), nl,
+        print_board(NewBoard, 8)
+    ;   write('Nenhuma jogada válida encontrada para as peças da cor: '), write(Cor), nl
+    ).
+
+% Inicia o ciclo de jogadas alternadas
+iniciar_jogo :-
+    loop_jogadas('W').
+
+% Ciclo de jogadas alternadas
+loop_jogadas(CorAtual) :-
+    board(Board),
+    % Verifica se ainda há peças de ambas as cores no tabuleiro
+    findall([X, Y], find_piece(Board, 'W', X, Y), PeçasBrancas),
+    findall([X, Y], find_piece(Board, 'B', X, Y), PeçasPretas),
+    (
+        PeçasBrancas = [] -> 
+        write('Peças brancas não têm mais jogadas. Peças pretas venceram!'), nl
+    ;
+        PeçasPretas = [] -> 
+        write('Peças pretas não têm mais jogadas. Peças brancas venceram!'), nl
+    ;
+        % Caso ambas as cores ainda tenham peças, prossegue com a jogada alternada
+        fazer_jogada_aleatoria(CorAtual),
+        alternar_cor(CorAtual, ProximaCor),
+        loop_jogadas(ProximaCor)
+    ).
+
+% Executa uma jogada aleatória para a cor fornecida
+fazer_jogada_aleatoria(Cor) :-
+    jogada_aleatoria(Cor).
+
+% Alterna a cor atual para a próxima
+alternar_cor('W', 'B').
+alternar_cor('B', 'W').
+
+% Implementa os modos de jogo "Computador vs Computador" (CvsC) e "Pessoa vs Máquina" (PvM)
+
+% Inicia o jogo com a opção de escolher o modo de jogo
+iniciar :-
+    s,  % Inicializa o tabuleiro e exibe as instruções
+    write('Escolha o modo de jogo:\n'),
+    write('1. Computador vs Computador\n'),
+    write('2. Pessoa vs Máquina\n'),
+    read(Opcao),
+    iniciar_jogo(Opcao).
+
+% Ciclo de jogadas para o modo escolhido
+iniciar_jogo(1) :-  % Computador vs Computador
+    write('Modo Computador vs Computador iniciado!\n'),
+    loop_jogadas_automatica('W').
+
+iniciar_jogo(2) :-  % Pessoa vs Máquina
+    write('Modo Pessoa vs Máquina iniciado!\n'),
+    escolher_cor_jogador.
+
+% Permite que o jogador escolha sua cor no modo Pessoa vs Máquina
+escolher_cor_jogador :-
+    write('Escolha sua cor:\n'),
+    write('1. Branco (W)\n'),
+    write('2. Preto (B)\n'),
+    read(Opcao),
+    (   Opcao = 1 -> loop_jogadas_pessoa_vs_maquina('W');
+        Opcao = 2 -> loop_jogadas_pessoa_vs_maquina('B')
+    ).
+
+% Loop para o modo Computador vs Computador (CvsC)
+loop_jogadas_automatica(CorAtual) :-
+    board(Board),
+    % Verifica se ainda há peças de ambas as cores no tabuleiro
+    findall([X, Y], find_piece(Board, 'W', X, Y), PeçasBrancas),
+    findall([X, Y], find_piece(Board, 'B', X, Y), PeçasPretas),
+    (
+        PeçasBrancas = [] -> 
+        write('Peças brancas não têm mais jogadas. Peças pretas venceram!'), nl
+    ;
+        PeçasPretas = [] -> 
+        write('Peças pretas não têm mais jogadas. Peças brancas venceram!'), nl
+    ;
+        % Caso ambas as cores ainda tenham peças, prossegue com a jogada alternada
+        fazer_jogada_aleatoria(CorAtual),
+        alternar_cor(CorAtual, ProximaCor),
+        loop_jogadas_automatica(ProximaCor)
+    ).
+
+% Loop para o modo Pessoa vs Máquina (PvM)
+% Ciclo de jogadas alternadas para Pessoa vs Máquina usando os comandos mv e cap
+loop_jogadas_pessoa_vs_maquina(CorJogador) :-
+    alternar_cor(CorJogador, CorMaquina),
+    board(Board),
+    % Verifica se ainda há peças de ambas as cores no tabuleiro
+    findall([X, Y], find_piece(Board, 'W', X, Y), PeçasBrancas),
+    findall([X, Y], find_piece(Board, 'B', X, Y), PeçasPretas),
+    (
+        PeçasBrancas = [] -> 
+        write('Peças brancas não têm mais jogadas. Peças pretas venceram!'), nl
+    ;
+        PeçasPretas = [] -> 
+        write('Peças pretas não têm mais jogadas. Peças brancas venceram!'), nl
+    ;
+        % Se é a vez do jogador, permite que ele faça a jogada
+        write('Sua vez!\n'),
+        jogar_pessoa(CorJogador),
+        % Após a jogada do jogador, a máquina faz a sua jogada
+        jogar_computador(CorMaquina),
+        loop_jogadas_pessoa_vs_maquina(CorJogador)
+    ).
+
+% Predicado para a jogada do jogador (pessoa), onde o jogador usa mv ou cap
+jogar_pessoa(CorJogador) :-
+    write('Digite o comando para movimentar (mv(CasaOrigem, CasaDestino)) ou capturar (cap(CasaOrigem, [CasaDestino, ...])):'), nl,
+    read(Jogada),  % Lê o comando do jogador
+    ( 
+      call(Jogada) ->  % Tenta executar o comando lido (mv ou cap)
+      write('Jogada executada com sucesso!'), nl
+    ; 
+      write('Jogada inválida. Tente novamente.'), nl,
+      jogar_pessoa(CorJogador)  % Repete a jogada caso seja inválida
+    ).
+
+% Predicado para a jogada do computador, que faz uma jogada aleatória
+jogar_computador(CorMaquina) :-
+    write('Agora é a vez do computador!\n'),
+    jogada_aleatoria(CorMaquina),
+    write('Jogada do computador concluída.\n').
+
+
+% Alterna a cor atual para a próxima
+alternar_cor('W', 'B').
+alternar_cor('B', 'W').
